@@ -1,0 +1,24 @@
+{
+  "word_index": {
+    "outfit": 1,
+    "socks": 2,
+    "shirt": 3,
+    "dress": 4,
+    "pants": 5,
+    "bag": 6,
+    "jacket": 7,
+    "shoes": 8,
+    "skirt": 9
+  },
+  "index_word": {
+    "1": "Outfit",
+    "2": "Socks",
+    "3": "Shirt",
+    "4": "Dress",
+    "5": "Pants",
+    "6": "Bag",
+    "7": "Jacket",
+    "8": "Shoes",
+    "9": "Skirt"
+  }
+}
