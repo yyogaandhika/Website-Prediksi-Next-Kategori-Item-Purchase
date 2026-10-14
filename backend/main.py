@@ -2,21 +2,18 @@
 main.py
 --------
 FastAPI backend untuk Next Item Category Prediction.
+Mendukung eksekusi lokal dan deployment serverless ke Vercel.
 
 Endpoint:
-- GET  /                -> info dasar API
-- GET  /health           -> health check (status model)
-- GET  /categories        -> daftar kategori yang dikenali model
-- POST /predict           -> prediksi top-K kategori berikutnya
-
-Jalankan dengan:
-    uvicorn main:app --reload
+- GET  / dan /api/               -> info dasar API
+- GET  /health dan /api/health   -> health check (status predictor)
+- GET  /categories dan /api/categories -> daftar 9 kategori resmi
+- POST /predict dan /api/predict       -> prediksi top-K kategori berikutnya
 """
 
 import logging
 from contextlib import asynccontextmanager
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 
@@ -28,31 +25,24 @@ logger = logging.getLogger("main")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: muat model & tokenizer sekali saja, simpan di memori.
-    logger.info("Memuat model LSTM dan tokenizer...")
+    # Startup: inisialisasi predictor
+    logger.info("Menginisialisasi Next Category Predictor...")
     predictor.load()
-    logger.info("Model siap digunakan.")
+    logger.info("Predictor siap digunakan.")
     yield
-    # Shutdown: tidak ada resource khusus yang perlu dibersihkan.
 
 
 app = FastAPI(
     title="Next Category Prediction API",
-    description="API untuk memprediksi kategori produk berikutnya menggunakan model LSTM.",
+    description="API untuk memprediksi kategori produk berikutnya menggunakan AI.",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# Konfigurasi CORS agar frontend React (Vite, default port 5173) dapat
-# mengakses API ini. Untuk produksi, ganti allow_origins dengan domain
-# frontend yang sebenarnya.
+# Konfigurasi CORS agar frontend React (Vite / Vercel) dapat mengakses API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,7 +68,7 @@ class PredictRequest(BaseModel):
 
 class PredictionItem(BaseModel):
     category: str
-    probability: float  # nilai 0..1, frontend yang mengonversi ke persen
+    probability: float  # nilai 0..1
 
 
 class PredictResponse(BaseModel):
@@ -88,16 +78,21 @@ class PredictResponse(BaseModel):
     predictions: list[PredictionItem]
 
 
-@app.get("/")
+# Buat Router untuk mendukung endpoint baik dengan atau tanpa prefix /api
+router = APIRouter()
+
+
+@router.get("/")
 def root():
     return {
+        "status": "online",
         "message": "Next Category Prediction API aktif.",
         "docs": "/docs",
         "endpoints": ["/health", "/categories", "/predict"],
     }
 
 
-@app.get("/health")
+@router.get("/health")
 def health_check():
     return {
         "status": "ok" if predictor.is_loaded else "model_not_loaded",
@@ -105,22 +100,22 @@ def health_check():
     }
 
 
-@app.get("/categories")
+@router.get("/categories")
 def get_known_categories():
-    """Mengembalikan daftar kategori yang dikenali oleh model (sesuai data training)."""
+    """Mengembalikan daftar kategori yang dikenali oleh sistem."""
     if not predictor.is_loaded:
-        raise HTTPException(status_code=503, detail="Model belum siap.")
+        raise HTTPException(status_code=503, detail="Predictor belum siap.")
     return {"categories": predictor.known_categories()}
 
 
-@app.post("/predict", response_model=PredictResponse)
+@router.post("/predict", response_model=PredictResponse)
 def predict_next_category(payload: PredictRequest):
     if not predictor.is_loaded:
-        raise HTTPException(status_code=503, detail="Model belum siap, coba lagi sebentar.")
+        raise HTTPException(status_code=503, detail="Predictor belum siap, coba lagi sebentar.")
 
     try:
         result = predictor.predict_top_k(payload.categories, top_k=payload.top_k)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.exception("Gagal melakukan prediksi")
         raise HTTPException(status_code=500, detail=f"Gagal melakukan prediksi: {exc}") from exc
 
@@ -139,3 +134,12 @@ def predict_next_category(payload: PredictRequest):
         unknown_categories=result["unknown_categories"],
         predictions=result["predictions"],
     )
+
+
+# Pasang router ke root dan ke prefix /api
+app.include_router(router)
+app.include_router(router, prefix="/api")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

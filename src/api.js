@@ -1,12 +1,14 @@
 import axios from "axios";
 
-// Base URL backend FastAPI. Saat development, default-nya localhost:8000.
-// Untuk deployment, ganti via environment variable VITE_API_BASE_URL.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+// Base URL backend FastAPI:
+// - Di production (Vercel): menggunakan relative path '/api' sehingga ditangani oleh serverless function
+// - Di local development: Vite proxy otomatis meneruskan '/api' ke http://localhost:8000
+// - Bisa dioverride secara eksplisit lewat file .env (VITE_API_BASE_URL)
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: 25000,
   headers: {
     "Content-Type": "application/json",
   },

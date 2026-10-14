@@ -5,10 +5,13 @@ dist/
 .env.local
 
 # Backend (Python)
+__pycache__/
 backend/__pycache__/
+api/__pycache__/
 backend/.venv/
 backend/venv/
-*.pyc
+venv/
+*.py[cod]
 
 # OS / editor
 .DS_Store
